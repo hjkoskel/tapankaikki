@@ -1,0 +1,1304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TK Level Editor</title>
+<style>
+:root {
+  --bg: #16181c; --panel: #1f2228; --panel2: #272b33; --line: #363b45;
+  --text: #e4e6ea; --dim: #9aa1ad; --accent: #f2c230; --accent2: #3ec6d8;
+  --danger: #e5534b; --ok: #57c26a;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; overflow: hidden;
+}
+button, input, select {
+  font: inherit; color: var(--text); background: var(--panel2);
+  border: 1px solid var(--line); border-radius: 4px; padding: 3px 7px;
+}
+button { cursor: pointer; }
+button:hover { border-color: #566070; }
+button.on { background: #4a3f12; border-color: var(--accent); color: #fff; }
+button.primary { background: #2d4a2f; border-color: #3f7a45; }
+input[type=number] { width: 4.5em; }
+input:focus, select:focus, button:focus-visible { outline: 1px solid var(--accent2); }
+kbd {
+  font: 11px ui-monospace, monospace; background: #111; border: 1px solid var(--line);
+  border-radius: 3px; padding: 0 3px; color: var(--dim);
+}
+
+#side {
+  width: 350px; min-width: 350px; height: 100%; overflow-y: auto; background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+#side h1 { font-size: 15px; margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+#side h1 small { color: var(--dim); font-weight: normal; }
+details { border-bottom: 1px solid var(--line); }
+summary { padding: 7px 12px; cursor: pointer; font-weight: 600; user-select: none; }
+.sec { padding: 2px 12px 10px; }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 5px 0; }
+.row label { color: var(--dim); }
+.grid2 { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; align-items: center; }
+.grid2 span { color: var(--text); }
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.tools button { text-align: left; display: flex; justify-content: space-between; }
+.note { color: var(--dim); font-size: 12px; }
+.warn { color: var(--danger); }
+canvas.pix { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+#sheet { width: 320px; height: 200px; cursor: crosshair; }
+#shadowPal { width: 320px; cursor: pointer; }
+.sw { display: flex; gap: 10px; align-items: center; }
+.sw canvas { width: 40px; height: 40px; border: 2px solid var(--accent); }
+.sw canvas.r { border-color: var(--accent2); }
+.tabs { display: flex; gap: 4px; margin: 4px 0 6px; }
+
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#bar {
+  display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--panel);
+  border-bottom: 1px solid var(--line); flex-wrap: wrap;
+}
+#bar .sep { width: 1px; height: 20px; background: var(--line); }
+#fileName { font-weight: 600; }
+#dirty { color: var(--accent); }
+#scroll { flex: 1; overflow: auto; position: relative; background: #0d0e10; }
+#stage { position: relative; margin: 24px; }
+#stage canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#status {
+  padding: 4px 10px; background: var(--panel); border-top: 1px solid var(--line);
+  color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#msg { color: var(--accent); }
+#banner {
+  display: none; position: absolute; inset: 0; align-items: center; justify-content: center;
+  padding: 30px; text-align: center; color: var(--dim);
+}
+#banner div { max-width: 560px; }
+#banner b { color: var(--text); }
+.help td { padding: 1px 6px 1px 0; vertical-align: top; }
+.help td:first-child { white-space: nowrap; }
+@media (max-width: 760px) {
+  body { flex-direction: column; overflow: auto; }
+  #side { width: 100%; min-width: 0; height: auto; max-height: 45vh; }
+  #main { height: 55vh; }
+}
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <h1>TK Level Editor <small>Ultimate Tapan Kaikki</small></h1>
+
+  <details open>
+    <summary>File</summary>
+    <div class="sec">
+      <div class="row">
+        <select id="levSel" style="flex:1"><option>finding levels…</option></select>
+        <button id="btnLoad">Load</button>
+      </div>
+      <div class="row">
+        <button id="btnOpen">Open file… <kbd>Ctrl O</kbd></button>
+        <input type="file" id="fileIn" accept=".lev,.LEV" hidden>
+        <button id="btnSave" class="primary">Save <kbd>Ctrl S</kbd></button>
+      </div>
+      <div class="row">
+        <label>File name</label>
+        <input id="saveName" value="LEVEL1.LEV" style="flex:1">
+      </div>
+      <div class="row" id="draftRow" hidden>
+        <button id="btnDraft">Restore unsaved draft</button> <span class="note" id="draftInfo"></span>
+      </div>
+      <div class="row">
+        <label>Size</label>
+        <input type="number" id="newW" min="2" max="100" value="30"> ×
+        <input type="number" id="newH" min="2" max="100" value="20">
+        <button id="btnNew">New</button>
+        <button id="btnResize">Resize</button>
+      </div>
+      <div class="note">New fills the level with the right button block. Resize keeps the
+        top left corner. You can also drop a .LEV file on the map. Save downloads the file:
+        put it in <code>LEVS/&lt;EPISODE&gt;/LEVELn.LEV</code> to play it.</div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Tools</summary>
+    <div class="sec">
+      <div class="row">
+        <button id="layBlocks" class="on">Blocks</button>
+        <button id="layShadows">Shadows</button>
+        <span class="note"><kbd>Enter</kbd> switch</span>
+      </div>
+      <div class="tools" id="tools"></div>
+      <div class="row">
+        <button id="btnAuto">Auto shadows <kbd>F6</kbd></button>
+        <button id="btnUndo">Undo</button>
+        <button id="btnRedo">Redo</button>
+      </div>
+    </div>
+  </details>
+
+  <details open id="secBlocks">
+    <summary>Blocks</summary>
+    <div class="sec">
+      <div class="sw">
+        <canvas id="swL" class="pix" width="20" height="20"></canvas>
+        <canvas id="swR" class="pix r" width="20" height="20"></canvas>
+        <div class="note" id="swText"></div>
+      </div>
+      <div class="tabs">
+        <button id="tabWalls" class="on">Walls <kbd>PgUp</kbd></button>
+        <button id="tabFloor">Floor <kbd>PgDn</kbd></button>
+      </div>
+      <canvas id="sheet" class="pix" width="320" height="200"></canvas>
+      <div class="note">Left click: left button block, right click: right button block.</div>
+    </div>
+  </details>
+
+  <details open id="secShadows" hidden>
+    <summary>Shadows</summary>
+    <div class="sec">
+      <canvas id="shadowPal" class="pix" width="192" height="48"></canvas>
+      <div class="note">Click to choose the shadow for the left button. The right button removes
+        shadows. Shadows 1–3 are the ones used by the auto shadows.</div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Selected object</summary>
+    <div class="sec" id="objPanel"><span class="note">Nothing selected. Click a light,
+      steam or crate with its tool.</span></div>
+  </details>
+
+  <details>
+    <summary>Level settings</summary>
+    <div class="sec">
+      <div class="row"><label>Comment</label><input id="comment" maxlength="19" style="flex:1"></div>
+      <div class="row"><label>Time limit</label><input type="number" id="timeLimit" min="0" max="99999"> <span class="note">seconds, 0 = none</span></div>
+      <div class="grid2" id="enemies"></div>
+      <div class="row note" id="enemyTotal"></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Random crates</summary>
+    <div class="sec">
+      <div class="tabs">
+        <button id="tabNormal" class="on">Normal game</button>
+        <button id="tabDm">Deathmatch</button>
+      </div>
+      <div class="grid2" id="crateCounts"></div>
+      <div class="note">These crates are put at random places when the level starts.
+        Crates placed on the map with the crate tools come in addition.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Keys</summary>
+    <div class="sec">
+      <table class="help">
+        <tr><td>Left / right button</td><td>paint with the left / right block</td></tr>
+        <tr><td><kbd>Alt</kbd> + click</td><td>pick the block under the mouse</td></tr>
+        <tr><td>Middle drag, <kbd>Space</kbd> + drag</td><td>scroll</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + wheel, <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd></td><td>zoom, 0 = whole map</td></tr>
+        <tr><td><kbd>B</kbd> <kbd>F</kbd> <kbd>K</kbd> <kbd>I</kbd></td><td>paint, rectangle fill, flood fill, pick</td></tr>
+        <tr><td><kbd>1</kbd> <kbd>2</kbd></td><td>player 1 / 2 start</td></tr>
+        <tr><td><kbd>Q</kbd> / <kbd>W</kbd></td><td>place / delete spot light</td></tr>
+        <tr><td><kbd>A</kbd> / <kbd>S</kbd></td><td>place / delete steam</td></tr>
+        <tr><td><kbd>Z</kbd> <kbd>X</kbd> / <kbd>C</kbd></td><td>normal game / deathmatch crate, delete crate</td></tr>
+        <tr><td>Object tools</td><td>click empty = new, drag = move, right click = delete</td></tr>
+        <tr><td>Arrows</td><td>change the selected object (as in the DOS editor)</td></tr>
+        <tr><td><kbd>Del</kbd> <kbd>Esc</kbd></td><td>delete selected / deselect</td></tr>
+        <tr><td><kbd>Enter</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>O</kbd></td><td>blocks/shadows, grid, show shadows, show objects</td></tr>
+        <tr><td><kbd>Ctrl Z</kbd> <kbd>Ctrl Y</kbd></td><td>undo, redo</td></tr>
+        <tr><td><kbd>F6</kbd></td><td>auto shadows</td></tr>
+      </table>
+    </div>
+  </details>
+</aside>
+
+<main id="main">
+  <div id="bar">
+    <span id="fileName">(new level)</span><span id="dirty"></span>
+    <span class="sep"></span>
+    <button id="zOut">−</button><span id="zoomTxt">100%</span><button id="zIn">+</button>
+    <button id="zFit">Whole map</button>
+    <span class="sep"></span>
+    <label><input type="checkbox" id="optGrid"> grid</label>
+    <label><input type="checkbox" id="optShadows" checked> shadows</label>
+    <label><input type="checkbox" id="optObjects" checked> objects</label>
+  </div>
+  <div id="scroll">
+    <div id="stage">
+      <canvas id="mapCv" class="pix"></canvas>
+      <canvas id="ovCv"></canvas>
+    </div>
+    <div id="banner"><div id="bannerText"></div></div>
+  </div>
+  <div id="status"><span id="msg"></span> <span id="pos"></span></div>
+</main>
+
+<script>
+"use strict";
+/* TK level editor for the browser. Reads the game's own graphics (EFPS/*.EFP,
+ * PALETTE.TAB) and level files (LEVS/...). Level format, all 32-bit LE ints:
+ * version, w, h, blocks (type, num, shadow), p1 x y, p2 x y (blocks),
+ * spots n (x y size), steams n (x y angle speed), comment[20], time limit,
+ * enemies (7, from version 4: 8), normal game crates (weapons, bullets, energy;
+ * versions 1/2 have 2/1 fewer weapons and bullets), deathmatch crates,
+ * version 5: placed crates for normal game n (type1 type2 x y), deathmatch. */
+
+const T = 20, NT = 160, MAXW = 100, MAXH = 100;
+const NW = 11, NB = 9, NE = 8;
+const LIGHT = [15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
+const WEAPONS = ["Pistola", "Shotgun", "Uzi", "Auto rifle", "Grenade launcher", "Auto grenadier",
+  "Heavy launcher", "Auto shotgun", "C4-Activator", "Flame thrower", "Mine dropper"];
+const BULLETS = ["9mm bullets", "12mm bullets", "Shotgun shells", "Light grenades", "Medium grenades",
+  "Heavy grenades", "C4-explosives", "Gas", "Mines"];
+const ENEMIES = ["Pistol boys", "Shotgun maniacs", "Uzi rebels", "Commandos", "Grenade boys",
+  "Civilians", "Punishers", "Flamers"];
+const EPISODES = ["DEFAULT", "ULTIMATE", "SUNRISE", "BLANKET", "BLANKET2", "FIENDIS", "MOTHAFUX", "POKETI"];
+const SINGLE_LEVELS = ["CAVE.LEV", "DM.LEV", "SMALL.LEV"];
+
+const $ = id => document.getElementById(id);
+
+/* ---------------- graphics ---------------- */
+let palRGB, floorPix, wallPix, shadowPix, shadowTable, crateImg = [], tileCanvas = {};
+
+async function fetchBin(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(path + ": HTTP " + r.status);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+function decodeEFP(b, name) {
+  if (String.fromCharCode(...b.subarray(0, 6)) !== "EF pic") throw new Error(name + ": not an EF pic");
+  const w = b[6] | b[7] << 8, h = b[8] | b[9] << 8, pix = new Uint8Array(w * h);
+  let i = 0, o = 10;
+  while (i < pix.length && o < b.length) {
+    const c = b[o++];
+    if (c > 192) { const v = b[o++]; for (let k = c - 192; k > 0 && i < pix.length; k--) pix[i++] = v; }
+    else pix[i++] = c;
+  }
+  return { w, h, pix, pal: b.subarray(b.length - 768) };
+}
+
+function cut(p, x, y, w, h) {
+  const out = new Uint8Array(w * h);
+  for (let r = 0; r < h; r++) out.set(p.pix.subarray((y + r) * p.w + x, (y + r) * p.w + x + w), r * w);
+  return out;
+}
+
+function tilesOf(p) {
+  const out = new Uint8Array(NT * T * T);
+  for (let i = 0; i < NT; i++) out.set(cut(p, (i % 16) * T, ((i / 16) | 0) * T, T, T), i * T * T);
+  return out;
+}
+
+function toCanvas(pix, w, h, transparent) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d"), img = ctx.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) {
+    const v = pix[i];
+    img.data[i * 4] = palRGB[v * 3]; img.data[i * 4 + 1] = palRGB[v * 3 + 1]; img.data[i * 4 + 2] = palRGB[v * 3 + 2];
+    img.data[i * 4 + 3] = transparent && !v ? 0 : 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+async function loadGraphics() {
+  const [fl, wa, sh, cr, tab] = await Promise.all([
+    fetchBin("EFPS/FLOOR1.EFP"), fetchBin("EFPS/WALLS1.EFP"), fetchBin("EFPS/SHADOWS.EFP"),
+    fetchBin("EFPS/CRATES.EFP"), fetchBin("PALETTE.TAB")]);
+  const W = decodeEFP(wa, "WALLS1.EFP");
+  palRGB = new Uint8Array(768);
+  for (let i = 0; i < 768; i++) { const v = W.pal[i] & 63; palRGB[i] = v << 2 | v >> 4; }
+  floorPix = tilesOf(decodeEFP(fl, "FLOOR1.EFP"));
+  wallPix = tilesOf(W);
+  const S = decodeEFP(sh, "SHADOWS.EFP");
+  shadowPix = new Uint8Array(16 * T * T);
+  for (let i = 0; i < 16; i++) shadowPix.set(cut(S, i * T, 0, T, T), i * T * T);
+  shadowTable = tab.slice(65536, 65536 + 4096);   /* shadow_table[256][16] */
+  const C = decodeEFP(cr, "CRATES.EFP");
+  for (let i = 0; i < 3; i++) crateImg.push(toCanvas(cut(C, i * 14, 0, 14, 14), 14, 14, true));
+  tileCanvas.floor = toCanvas(decodeEFP(fl, "").pix, 320, 200, false);
+  tileCanvas.walls = toCanvas(W.pix, 320, 200, false);
+}
+
+/* ---------------- level ---------------- */
+let L;   /* the level */
+
+function emptyCounts() { return { weapon: new Array(NW).fill(0), bullet: new Array(NB).fill(0), energy: 0 }; }
+
+function newLevel(w, h, type, num) {
+  const n = w * h;
+  return {
+    version: 5, w, h,
+    type: new Int32Array(n).fill(type), num: new Int32Array(n).fill(num), shadow: new Int32Array(n),
+    start: [[1, 1], [Math.min(2, w - 1), 1]], spots: [], steams: [],
+    comment: new Uint8Array(20), time: 0, enemies: new Array(NE).fill(0),
+    rnd: [emptyCounts(), emptyCounts()], crates: [[], []]
+  };
+}
+
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+function parseLevel(buf) {
+  const dv = new DataView(buf);
+  let o = 0;
+  const rd = () => { const v = o + 4 <= dv.byteLength ? dv.getInt32(o, true) : 0; o += 4; return v; };
+  const version = rd(), w = rd(), h = rd();
+  if (version < 1 || version > 5) throw new Error("unknown level version " + version);
+  if (w < 2 || h < 2 || w > MAXW || h > MAXH) throw new Error("level size " + w + "×" + h + " not supported");
+  if (dv.byteLength < 12 + w * h * 12) throw new Error("file is too short");
+  const l = newLevel(w, h, 0, 0);
+  l.version = version;
+  for (let i = 0; i < w * h; i++) {
+    l.type[i] = rd() ? 1 : 0; l.num[i] = clamp(rd(), 0, NT - 1); l.shadow[i] = clamp(rd(), 0, 16);
+  }
+  for (let p = 0; p < 2; p++) l.start[p] = [clamp(rd(), 0, w - 1), clamp(rd(), 0, h - 1)];
+  let n = rd();
+  if (n < 0 || n > 10000) throw new Error("bad spot light count");
+  for (let i = 0; i < n; i++) l.spots.push({ x: rd(), y: rd(), size: clamp(rd(), 0, 9) });
+  n = rd();
+  if (n < 0 || n > 10000) throw new Error("bad steam count");
+  for (let i = 0; i < n; i++) l.steams.push({ x: rd(), y: rd(), angle: rd(), speed: rd() });
+  l.comment = new Uint8Array(20);
+  l.comment.set(new Uint8Array(buf, Math.min(o, buf.byteLength), Math.max(0, Math.min(20, buf.byteLength - o))));
+  o += 20;
+  l.time = rd();
+  for (let i = 0; i < (version >= 4 ? 8 : 7); i++) l.enemies[i] = rd();
+  const nw = version === 1 ? NW - 2 : version === 2 ? NW - 1 : NW;
+  const nb = version === 1 ? NB - 2 : version === 2 ? NB - 1 : NB;
+  for (let k = 0; k < 2; k++) {
+    for (let i = 0; i < nw; i++) l.rnd[k].weapon[i] = rd();
+    for (let i = 0; i < nb; i++) l.rnd[k].bullet[i] = rd();
+    l.rnd[k].energy = rd();
+  }
+  if (version >= 5)
+    for (let k = 0; k < 2; k++) {
+      n = rd();
+      if (n < 0 || n > 10000) throw new Error("bad crate count");
+      for (let i = 0; i < n; i++) l.crates[k].push({ type1: clamp(rd(), 0, 2), type2: rd(), x: rd(), y: rd() });
+    }
+  return l;
+}
+
+function saveLevel(l) {
+  const size = 12 + l.w * l.h * 12 + 16 + 4 + l.spots.length * 12 + 4 + l.steams.length * 16 + 20 + 4 +
+    NE * 4 + 2 * (NW + NB + 1) * 4 + 8 + (l.crates[0].length + l.crates[1].length) * 16;
+  const buf = new ArrayBuffer(size), dv = new DataView(buf);
+  let o = 0;
+  const wr = v => { dv.setInt32(o, v | 0, true); o += 4; };
+  wr(5); wr(l.w); wr(l.h);
+  for (let i = 0; i < l.w * l.h; i++) { wr(l.type[i]); wr(l.num[i]); wr(l.shadow[i]); }
+  for (const s of l.start) { wr(s[0]); wr(s[1]); }
+  wr(l.spots.length); for (const s of l.spots) { wr(s.x); wr(s.y); wr(s.size); }
+  wr(l.steams.length); for (const s of l.steams) { wr(s.x); wr(s.y); wr(s.angle); wr(s.speed); }
+  new Uint8Array(buf, o, 20).set(l.comment); o += 20;
+  wr(l.time);
+  for (const e of l.enemies) wr(e);
+  for (const c of l.rnd) { c.weapon.forEach(wr); c.bullet.forEach(wr); wr(c.energy); }
+  for (const list of l.crates) { wr(list.length); for (const c of list) { wr(c.type1); wr(c.type2); wr(c.x); wr(c.y); } }
+  return buf;
+}
+
+/* auto shadows, light from the upper right (rule measured from the original levels):
+ * under a wall 3, left of a wall 2, corner 1 when up-right or both above and right are walls */
+function autoShadows() {
+  const wall = (x, y) => x < 0 || y < 0 || x >= L.w || y >= L.h || L.type[y * L.w + x] !== 0;
+  for (let y = 0; y < L.h; y++)
+    for (let x = 0; x < L.w; x++) {
+      const i = y * L.w + x;
+      if (L.type[i]) { L.shadow[i] = 0; continue; }
+      const n = wall(x, y - 1), ne = wall(x + 1, y - 1), e = wall(x + 1, y);
+      L.shadow[i] = ne || (n && e) ? 1 : n ? 3 : e ? 2 : 0;
+    }
+}
+
+/* ---------------- editor state ---------------- */
+let fileName = "", dirty = false;
+let layer = "blocks", tool = "paint", sheetWalls = true;
+let pick = [{ type: 1, num: 0 }, { type: 0, num: 0 }], pickShadow = 1;
+let zoom = 1, crateTab = 0;
+let sel = null;            /* {kind: "spot"|"steam"|"crate", k, i} */
+let hover = null;          /* {px, py, bx, by} */
+let drag = null;           /* current mouse action */
+let undoStack = [], redoStack = [], lastUndoKey = "", lastUndoTime = 0;
+let template = { spot: { size: 3 }, steam: { angle: 180, speed: 2 }, crate: { type1: 0, type2: 0 } };
+
+const TOOLS = [
+  ["paint", "Paint", "B"], ["rect", "Rectangle fill", "F"], ["flood", "Flood fill", "K"], ["pick", "Pick block", "I"],
+  ["start1", "Player 1 start", "1"], ["start2", "Player 2 start", "2"],
+  ["spot", "Spot light", "Q"], ["delSpot", "Delete light", "W"],
+  ["steam", "Steam", "A"], ["delSteam", "Delete steam", "S"],
+  ["crateN", "Crate (normal)", "Z"], ["crateD", "Crate (deathm.)", "X"], ["delCrate", "Delete crate", "C"]
+];
+
+function message(t) { $("msg").textContent = t; clearTimeout(message.t); message.t = setTimeout(() => $("msg").textContent = "", 4000); }
+
+function setDirty(d) {
+  dirty = d;
+  $("dirty").textContent = d ? " • not saved" : "";
+  if (d) scheduleDraft();
+}
+
+/* undo: snapshots in the file format; changes with the same key within 1 s are merged */
+function pushUndo(key) {
+  const now = Date.now();
+  if (key && key === lastUndoKey && now - lastUndoTime < 1000) { lastUndoTime = now; setDirty(true); return; }
+  lastUndoKey = key || ""; lastUndoTime = now;
+  undoStack.push(saveLevel(L));
+  if (undoStack.length > 100) undoStack.shift();
+  redoStack = [];
+  setDirty(true);
+}
+function undoRedo(from, to, what) {
+  if (!from.length) { message("nothing to " + what); return; }
+  to.push(saveLevel(L));
+  const l = parseLevel(from.pop());
+  const resized = l.w !== L.w || l.h !== L.h;
+  L = l; sel = null; lastUndoKey = "";
+  if (resized) setupCanvas(); else renderAll();
+  refreshPanels(); setDirty(true); message(what === "undo" ? "undone" : "redone");
+}
+
+/* ---------------- map rendering ---------------- */
+const mapCv = $("mapCv"), ovCv = $("ovCv"), mctx = mapCv.getContext("2d"), octx = ovCv.getContext("2d");
+let mapImg, OV = 2;   /* overlay is drawn at 2x for sharper lines and text */
+
+function setupCanvas() {
+  mapCv.width = L.w * T; mapCv.height = L.h * T;
+  ovCv.width = L.w * T * OV; ovCv.height = L.h * T * OV;
+  mapImg = mctx.createImageData(mapCv.width, mapCv.height);
+  for (let i = 3; i < mapImg.data.length; i += 4) mapImg.data[i] = 255;
+  applyZoom();
+  renderAll();
+}
+
+function paintBlock(bx, by) {
+  const i = by * L.w + bx, src = L.type[i] ? wallPix : floorPix, base = L.num[i] * T * T;
+  const s = $("optShadows").checked ? L.shadow[i] : 0, sb = (s - 1) * T * T, d = mapImg.data, W = mapCv.width;
+  for (let y = 0; y < T; y++)
+    for (let x = 0; x < T; x++) {
+      let c = src[base + y * T + x];
+      if (s > 0) { const v = shadowPix[sb + y * T + x]; if (v) c = shadowTable[c * 16 + (v & 15)]; }
+      const o = ((by * T + y) * W + bx * T + x) * 4;
+      d[o] = palRGB[c * 3]; d[o + 1] = palRGB[c * 3 + 1]; d[o + 2] = palRGB[c * 3 + 2];
+    }
+}
+
+function renderAll() {
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) paintBlock(x, y);
+  mctx.putImageData(mapImg, 0, 0);
+  drawOverlay();
+}
+
+function renderBlocks(list) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+  for (const [x, y] of list) {
+    paintBlock(x, y);
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+  }
+  if (x1 >= 0) mctx.putImageData(mapImg, 0, 0, x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T);
+}
+
+let ovPending = false;
+function drawOverlay() {
+  if (ovPending) return;
+  ovPending = true;
+  requestAnimationFrame(() => { ovPending = false; drawOverlayNow(); });
+}
+
+function steamEnd(s, len) {
+  const a = s.angle * Math.PI / 180;
+  return [s.x + Math.sin(a) * len, s.y + Math.cos(a) * len];
+}
+
+function drawOverlayNow() {
+  const c = octx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, ovCv.width, ovCv.height);
+  c.setTransform(OV, 0, 0, OV, 0, 0);
+  c.imageSmoothingEnabled = false;
+  const lw = Math.max(0.5, 1 / zoom);
+  if ($("optGrid").checked) {
+    c.strokeStyle = "rgba(0,0,0,.45)"; c.lineWidth = lw;
+    c.beginPath();
+    for (let x = 1; x < L.w; x++) { c.moveTo(x * T, 0); c.lineTo(x * T, L.h * T); }
+    for (let y = 1; y < L.h; y++) { c.moveTo(0, y * T); c.lineTo(L.w * T, y * T); }
+    c.stroke();
+  }
+  if ($("optObjects").checked) {
+    L.crates.forEach((list, k) => list.forEach((cr, i) => {
+      c.drawImage(crateImg[clamp(cr.type1, 0, 2)], cr.x, cr.y);
+      c.strokeStyle = k ? "#46e05a" : "#5b8cff"; c.lineWidth = lw * 1.5;
+      c.strokeRect(cr.x - 1, cr.y - 1, 16, 16);
+      if (isSel("crate", i, k)) selMark(cr.x + 7, cr.y + 7, 13);
+    }));
+    L.spots.forEach((s, i) => {
+      c.strokeStyle = "#ffe14a"; c.lineWidth = lw * 1.5;
+      c.beginPath(); c.arc(s.x, s.y, LIGHT[s.size] / 2, 0, 7); c.stroke();
+      c.fillStyle = "rgba(255,225,74,.15)"; c.fill();
+      c.beginPath(); c.moveTo(s.x - 3, s.y); c.lineTo(s.x + 3, s.y); c.moveTo(s.x, s.y - 3); c.lineTo(s.x, s.y + 3); c.stroke();
+      if (isSel("spot", i)) selMark(s.x, s.y, LIGHT[s.size] / 2 + 3);
+    });
+    L.steams.forEach((s, i) => {
+      const [ex, ey] = steamEnd(s, 8 + s.speed * 4);
+      c.strokeStyle = "#5fe3f0"; c.lineWidth = lw * 1.5;
+      c.beginPath(); c.arc(s.x, s.y, 3.5, 0, 7); c.stroke();
+      c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(ex, ey); c.stroke();
+      const a = s.angle * Math.PI / 180;
+      c.beginPath();
+      c.moveTo(ex, ey);
+      c.lineTo(ex - Math.sin(a - 0.5) * 4, ey - Math.cos(a - 0.5) * 4);
+      c.moveTo(ex, ey);
+      c.lineTo(ex - Math.sin(a + 0.5) * 4, ey - Math.cos(a + 0.5) * 4);
+      c.stroke();
+      if (isSel("steam", i)) selMark(s.x, s.y, 9);
+    });
+  }
+  L.start.forEach((s, p) => {
+    const col = p ? "#ffd230" : "#ff4040";
+    c.strokeStyle = col; c.lineWidth = 2;
+    c.strokeRect(s[0] * T + 1, s[1] * T + 1, T - 2, T - 2);
+    c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(s[0] * T + 5, s[1] * T + 4, 10, 12);
+    c.fillStyle = col; c.font = "bold 11px system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText(String(p + 1), s[0] * T + 10, s[1] * T + 10.5);
+  });
+  /* tool feedback */
+  if (drag && drag.kind === "rect" && hover) {
+    const [x0, y0, x1, y1] = rectOf(drag.bx, drag.by, hover.bx, hover.by);
+    c.strokeStyle = drag.button ? "#5fe3f0" : "#fff"; c.lineWidth = lw * 2;
+    c.strokeRect(x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T);
+  } else if (hover && onLevel(hover.bx, hover.by) && ["paint", "rect", "flood", "pick", "start1", "start2"].includes(tool)) {
+    c.strokeStyle = "rgba(255,255,255,.9)"; c.lineWidth = lw;
+    c.strokeRect(hover.bx * T + .5, hover.by * T + .5, T - 1, T - 1);
+  }
+}
+
+function selMark(x, y, r) {
+  octx.save();
+  octx.strokeStyle = "#fff"; octx.lineWidth = Math.max(0.5, 1 / zoom); octx.setLineDash([3, 2]);
+  octx.strokeRect(x - r, y - r, r * 2, r * 2);
+  octx.restore();
+}
+const isSel = (kind, i, k) => sel && sel.kind === kind && sel.i === i && (kind !== "crate" || sel.k === k);
+
+/* ---------------- zoom & coordinates ---------------- */
+const scroller = $("scroll"), stage = $("stage");
+function applyZoom() {
+  stage.style.width = L.w * T * zoom + "px";
+  stage.style.height = L.h * T * zoom + "px";
+  $("zoomTxt").textContent = Math.round(zoom * 100) + "%";
+  drawOverlay();
+}
+function setZoom(z, cx, cy) {
+  z = clamp(z, 0.2, 6);
+  const r = scroller.getBoundingClientRect();
+  if (cx === undefined) { cx = r.left + r.width / 2; cy = r.top + r.height / 2; }
+  const sr = stage.getBoundingClientRect();
+  const mx = (cx - sr.left) / zoom, my = (cy - sr.top) / zoom;
+  zoom = z;
+  applyZoom();
+  const sr2 = stage.getBoundingClientRect();
+  scroller.scrollLeft += sr2.left + mx * zoom - cx;
+  scroller.scrollTop += sr2.top + my * zoom - cy;
+}
+function zoomFit() {
+  const r = scroller.getBoundingClientRect();
+  setZoom(Math.min((r.width - 48) / (L.w * T), (r.height - 48) / (L.h * T)));
+  scroller.scrollLeft = 0; scroller.scrollTop = 0;
+}
+function mapPos(e) {
+  const r = ovCv.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width * L.w * T, py = (e.clientY - r.top) / r.height * L.h * T;
+  return { px: Math.floor(px), py: Math.floor(py), bx: Math.floor(px / T), by: Math.floor(py / T) };
+}
+const onLevel = (x, y) => x >= 0 && y >= 0 && x < L.w && y < L.h;
+function rectOf(ax, ay, bx, by) {
+  return [clamp(Math.min(ax, bx), 0, L.w - 1), clamp(Math.min(ay, by), 0, L.h - 1),
+    clamp(Math.max(ax, bx), 0, L.w - 1), clamp(Math.max(ay, by), 0, L.h - 1)];
+}
+
+/* ---------------- editing ---------------- */
+function setBlock(bx, by, button, changed) {
+  if (!onLevel(bx, by)) return;
+  const i = by * L.w + bx;
+  if (layer === "shadows") {
+    const s = button ? 0 : pickShadow;
+    if (L.shadow[i] === s) return;
+    if (!drag.undone) { pushUndo(); drag.undone = true; }
+    L.shadow[i] = s;
+  } else {
+    const p = pick[button];
+    if (L.type[i] === p.type && L.num[i] === p.num) return;
+    if (!drag.undone) { pushUndo(); drag.undone = true; }
+    L.type[i] = p.type; L.num[i] = p.num;
+  }
+  changed.push([bx, by]);
+}
+
+function paintLine(x0, y0, x1, y1, button) {
+  const changed = [];
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let e = dx + dy;
+  for (;;) {
+    setBlock(x0, y0, button, changed);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * e;
+    if (e2 >= dy) { e += dy; x0 += sx; }
+    if (e2 <= dx) { e += dx; y0 += sy; }
+  }
+  renderBlocks(changed);
+}
+
+function fillRect(ax, ay, bx, by, button) {
+  const [x0, y0, x1, y1] = rectOf(ax, ay, bx, by), changed = [];
+  drag.undone = false;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) setBlock(x, y, button, changed);
+  renderBlocks(changed);
+}
+
+function floodFill(bx, by, button) {
+  if (!onLevel(bx, by)) return;
+  const key = i => layer === "shadows" ? L.shadow[i] : L.type[i] * 1000 + L.num[i];
+  const start = key(by * L.w + bx), seen = new Uint8Array(L.w * L.h), stack = [[bx, by]], changed = [];
+  drag.undone = false;
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    if (!onLevel(x, y) || seen[y * L.w + x] || key(y * L.w + x) !== start) continue;
+    seen[y * L.w + x] = 1;
+    setBlock(x, y, button, changed);
+    stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+  }
+  renderBlocks(changed);
+}
+
+function pickAt(bx, by, button) {
+  if (!onLevel(bx, by)) return;
+  const i = by * L.w + bx;
+  if (layer === "shadows") { if (L.shadow[i]) pickShadow = L.shadow[i]; }
+  else { pick[button] = { type: L.type[i], num: L.num[i] }; sheetWalls = !!L.type[i]; }
+  refreshPalettes();
+}
+
+/* object hit test: the nearest object of a kind within reach */
+function findObj(kind, px, py) {
+  let best = null, bd = (12 / Math.min(zoom, 1.5)) ** 2;
+  const test = (d, o) => { if (d <= bd) { bd = d; best = o; } };
+  if (kind === "spot") L.spots.forEach((s, i) => test((s.x - px) ** 2 + (s.y - py) ** 2, { kind, i }));
+  if (kind === "steam") L.steams.forEach((s, i) => test((s.x - px) ** 2 + (s.y - py) ** 2, { kind, i }));
+  if (kind === "crate") L.crates.forEach((list, k) => list.forEach((c, i) =>
+    test((c.x + 7 - px) ** 2 + (c.y + 7 - py) ** 2, { kind, i, k })));
+  return best;
+}
+function objOf(s) {
+  if (!s) return null;
+  return s.kind === "spot" ? L.spots[s.i] : s.kind === "steam" ? L.steams[s.i] : L.crates[s.k][s.i];
+}
+function deleteObj(s) {
+  if (!s) { message("nothing here to delete"); return; }
+  pushUndo();
+  if (s.kind === "spot") L.spots.splice(s.i, 1);
+  else if (s.kind === "steam") L.steams.splice(s.i, 1);
+  else L.crates[s.k].splice(s.i, 1);
+  sel = null; refreshObjPanel(); refreshCounts(); drawOverlay();
+}
+function addObj(kind, px, py, dm) {
+  pushUndo();
+  if (kind === "spot") { L.spots.push({ x: px, y: py, size: template.spot.size }); sel = { kind, i: L.spots.length - 1 }; }
+  if (kind === "steam") { L.steams.push({ x: px, y: py, ...template.steam }); sel = { kind, i: L.steams.length - 1 }; }
+  if (kind === "crate") {
+    L.crates[dm].push({ ...template.crate, x: px - 7, y: py - 7 });
+    sel = { kind, k: dm, i: L.crates[dm].length - 1 };
+  }
+  refreshObjPanel(); refreshCounts(); drawOverlay();
+}
+
+const OBJ_TOOL = { spot: "spot", steam: "steam", crateN: "crate", crateD: "crate",
+  delSpot: "spot", delSteam: "steam", delCrate: "crate" };
+
+/* ---------------- mouse ---------------- */
+let spaceDown = false;
+ovCv.addEventListener("contextmenu", e => e.preventDefault());
+ovCv.addEventListener("pointerdown", e => {
+  ovCv.setPointerCapture(e.pointerId);
+  const m = mapPos(e);
+  hover = m;
+  if (e.button === 1 || spaceDown) {
+    drag = { kind: "pan", x: e.clientX, y: e.clientY, sl: scroller.scrollLeft, st: scroller.scrollTop };
+    ovCv.style.cursor = "grabbing";
+    e.preventDefault();
+    return;
+  }
+  if (e.button !== 0 && e.button !== 2) return;
+  const button = e.button === 2 ? 1 : 0;
+  if (e.altKey || tool === "pick") { pickAt(m.bx, m.by, button); return; }
+  const ot = OBJ_TOOL[tool];
+  if (tool === "paint") {
+    drag = { kind: "paint", button, bx: m.bx, by: m.by, undone: false };
+    paintLine(m.bx, m.by, m.bx, m.by, button);
+  } else if (tool === "rect") {
+    drag = { kind: "rect", button, bx: m.bx, by: m.by };
+  } else if (tool === "flood") {
+    drag = { kind: "flood" };
+    floodFill(m.bx, m.by, button);
+    drag = null;
+  } else if (tool === "start1" || tool === "start2") {
+    if (onLevel(m.bx, m.by) && button === 0) {
+      pushUndo();
+      L.start[tool === "start2" ? 1 : 0] = [m.bx, m.by];
+      setTool("paint");
+    }
+  } else if (ot) {
+    const hit = findObj(ot, m.px, m.py);
+    if (tool.startsWith("del") || button === 1) { deleteObj(hit); return; }
+    if (hit) {
+      sel = hit;
+      const o = objOf(hit);
+      drag = { kind: "move", ox: o.x - m.px, oy: o.y - m.py, moved: false };
+    } else if (m.px >= 0 && m.py >= 0 && m.px < L.w * T && m.py < L.h * T) {
+      addObj(ot, m.px, m.py, tool === "crateD" ? 1 : 0);
+    }
+    refreshObjPanel();
+  }
+  drawOverlay();
+});
+
+ovCv.addEventListener("pointermove", e => {
+  const m = mapPos(e);
+  const old = hover;
+  hover = m;
+  showPos();
+  if (drag && drag.kind === "pan") {
+    scroller.scrollLeft = drag.sl - (e.clientX - drag.x);
+    scroller.scrollTop = drag.st - (e.clientY - drag.y);
+    return;
+  }
+  if (drag && drag.kind === "paint" && old) {
+    paintLine(drag.bx, drag.by, m.bx, m.by, drag.button);
+    drag.bx = m.bx; drag.by = m.by;
+  }
+  if (drag && drag.kind === "move" && sel) {
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    const o = objOf(sel);
+    o.x = clamp(m.px + drag.ox, 0, L.w * T - 1); o.y = clamp(m.py + drag.oy, 0, L.h * T - 1);
+    refreshObjPanel();
+  }
+  if (!old || old.bx !== m.bx || old.by !== m.by || drag) drawOverlay();
+});
+
+function endDrag(e) {
+  if (drag && drag.kind === "rect" && hover) fillRect(drag.bx, drag.by, hover.bx, hover.by, drag.button);
+  if (drag && drag.kind === "pan") ovCv.style.cursor = "";
+  drag = null;
+  if (e) try { ovCv.releasePointerCapture(e.pointerId); } catch (_) { /* not captured */ }
+  drawOverlay();
+}
+ovCv.addEventListener("pointerup", endDrag);
+ovCv.addEventListener("pointercancel", endDrag);
+ovCv.addEventListener("pointerleave", () => { if (!drag) { hover = null; showPos(); drawOverlay(); } });
+scroller.addEventListener("wheel", e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+}, { passive: false });
+
+function showPos() {
+  if (!hover || !onLevel(hover.bx, hover.by)) { $("pos").textContent = `${L.w}×${L.h} blocks`; return; }
+  const i = hover.by * L.w + hover.bx;
+  $("pos").textContent = `block ${hover.bx},${hover.by}  pixel ${hover.px},${hover.py}  ` +
+    `${L.type[i] ? "wall" : "floor"} ${L.num[i]}  shadow ${L.shadow[i]}  —  ${L.w}×${L.h} blocks`;
+}
+
+/* ---------------- palettes ---------------- */
+const sheet = $("sheet"), sctx = sheet.getContext("2d");
+let sheetHover = -1;
+function drawSheet() {
+  sctx.imageSmoothingEnabled = false;
+  sctx.drawImage(sheetWalls ? tileCanvas.walls : tileCanvas.floor, 0, 0);
+  [1, 0].forEach(b => {
+    const p = pick[b];
+    if (!!p.type !== sheetWalls) return;
+    sctx.strokeStyle = b ? "#3ec6d8" : "#f2c230"; sctx.lineWidth = 2;
+    sctx.strokeRect((p.num % 16) * T + 1, ((p.num / 16) | 0) * T + 1, T - 2, T - 2);
+  });
+  if (sheetHover >= 0) {
+    sctx.strokeStyle = "#fff"; sctx.lineWidth = 1;
+    sctx.strokeRect((sheetHover % 16) * T + .5, ((sheetHover / 16) | 0) * T + .5, T - 1, T - 1);
+  }
+}
+function sheetIndex(e) {
+  const r = sheet.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width * 16), y = Math.floor((e.clientY - r.top) / r.height * 10);
+  return x >= 0 && x < 16 && y >= 0 && y < 10 ? y * 16 + x : -1;
+}
+sheet.addEventListener("contextmenu", e => e.preventDefault());
+sheet.addEventListener("pointerdown", e => {
+  const i = sheetIndex(e);
+  if (i < 0 || (e.button !== 0 && e.button !== 2)) return;
+  pick[e.button === 2 ? 1 : 0] = { type: sheetWalls ? 1 : 0, num: i };
+  if (layer !== "blocks") setLayer("blocks");
+  if (OBJ_TOOL[tool] || tool.startsWith("start")) setTool("paint");
+  refreshPalettes();
+});
+sheet.addEventListener("pointermove", e => { sheetHover = sheetIndex(e); drawSheet(); });
+sheet.addEventListener("pointerleave", () => { sheetHover = -1; drawSheet(); });
+
+function drawSwatch(cv, p) {
+  const c = cv.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  const src = p.type ? tileCanvas.walls : tileCanvas.floor;
+  c.drawImage(src, (p.num % 16) * T, ((p.num / 16) | 0) * T, T, T, 0, 0, T, T);
+}
+
+const shPal = $("shadowPal"), shctx = shPal.getContext("2d");
+function drawShadowPal() {
+  const base = pick[1].type ? 0 : pick[1].num, img = shctx.createImageData(192, 48);
+  for (let s = 0; s < 16; s++) {
+    const ox = (s % 8) * 24 + 2, oy = ((s / 8) | 0) * 24 + 2;
+    for (let y = 0; y < T; y++)
+      for (let x = 0; x < T; x++) {
+        let c = floorPix[base * T * T + y * T + x];
+        const v = shadowPix[s * T * T + y * T + x];
+        if (v) c = shadowTable[c * 16 + (v & 15)];
+        const o = ((oy + y) * 192 + ox + x) * 4;
+        img.data[o] = palRGB[c * 3]; img.data[o + 1] = palRGB[c * 3 + 1]; img.data[o + 2] = palRGB[c * 3 + 2]; img.data[o + 3] = 255;
+      }
+  }
+  shctx.putImageData(img, 0, 0);
+  const s = pickShadow - 1;
+  shctx.strokeStyle = "#f2c230"; shctx.lineWidth = 2;
+  shctx.strokeRect((s % 8) * 24 + 1, ((s / 8) | 0) * 24 + 1, 22, 22);
+  shctx.fillStyle = "#9aa1ad"; shctx.font = "7px sans-serif";
+  for (let i = 0; i < 16; i++) shctx.fillText(String(i + 1), (i % 8) * 24 + 3, ((i / 8) | 0) * 24 + 9);
+}
+shPal.addEventListener("pointerdown", e => {
+  const r = shPal.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width * 8), y = Math.floor((e.clientY - r.top) / r.height * 2);
+  if (x < 0 || x > 7 || y < 0 || y > 1) return;
+  pickShadow = y * 8 + x + 1;
+  refreshPalettes();
+});
+
+function refreshPalettes() {
+  drawSheet();
+  drawSwatch($("swL"), pick[0]); drawSwatch($("swR"), pick[1]);
+  const n = p => (p.type ? "wall " : "floor ") + p.num;
+  $("swText").innerHTML = `<b style="color:var(--accent)">L</b> ${n(pick[0])}<br>` +
+    `<b style="color:var(--accent2)">R</b> ${n(pick[1])}`;
+  $("tabWalls").classList.toggle("on", sheetWalls);
+  $("tabFloor").classList.toggle("on", !sheetWalls);
+  drawShadowPal();
+}
+
+/* ---------------- side panels ---------------- */
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("#tools button").forEach(b => b.classList.toggle("on", b.dataset.tool === t));
+  const ot = OBJ_TOOL[t];
+  if (sel && ot !== sel.kind) { sel = null; refreshObjPanel(); }
+  ovCv.style.cursor = t === "paint" || t === "rect" || t === "flood" ? "crosshair" : t === "pick" ? "copy" : "default";
+  drawOverlay();
+}
+function setLayer(l) {
+  layer = l;
+  $("layBlocks").classList.toggle("on", l === "blocks");
+  $("layShadows").classList.toggle("on", l === "shadows");
+  $("secShadows").hidden = l !== "shadows";
+  if (l === "shadows" && !$("optShadows").checked) { $("optShadows").checked = true; renderAll(); }
+  message(l === "shadows" ? "editing shadows: left = shadow " + pickShadow + ", right = no shadow" : "editing blocks");
+}
+
+function numInput(val, min, max, onchange) {
+  const inp = document.createElement("input");
+  inp.type = "number"; inp.min = min; inp.max = max; inp.value = val;
+  inp.addEventListener("input", () => {
+    const v = parseInt(inp.value, 10);
+    if (!isNaN(v)) onchange(clamp(v, min, max));
+  });
+  return inp;
+}
+
+function refreshObjPanel() {
+  const p = $("objPanel");
+  p.textContent = "";
+  const o = objOf(sel);
+  if (!o) {
+    p.innerHTML = '<span class="note">Nothing selected. Click a light, steam or crate with its tool.</span>';
+    return;
+  }
+  const row = (label, el) => {
+    const r = document.createElement("div"); r.className = "row";
+    const l = document.createElement("label"); l.textContent = label;
+    r.append(l, el); p.append(r); return r;
+  };
+  const change = (key, f) => v => { pushUndo("obj-" + key); f(v); drawOverlay(); };
+  const title = document.createElement("div");
+  title.style.fontWeight = "600";
+  title.textContent = sel.kind === "spot" ? "Spot light" : sel.kind === "steam" ? "Steam" :
+    (sel.k ? "Deathmatch crate" : "Normal game crate");
+  p.append(title);
+  if (sel.kind === "spot") {
+    row("Size (0–9)", numInput(o.size, 0, 9, change("size", v => { o.size = v; template.spot.size = v; })))
+      .append(Object.assign(document.createElement("span"), { className: "note", textContent: `${LIGHT[o.size]} px wide` }));
+  } else if (sel.kind === "steam") {
+    row("Angle", numInput(o.angle, 0, 359, change("angle", v => { o.angle = v; template.steam.angle = v; })))
+      .append(Object.assign(document.createElement("span"), { className: "note", textContent: "0 = down, 90 = right, 180 = up" }));
+    row("Range (0–7)", numInput(o.speed, 0, 7, change("speed", v => { o.speed = v; template.steam.speed = v; })));
+  } else {
+    const t1 = document.createElement("select");
+    ["Weapon", "Bullets", "Energy"].forEach((n, i) => t1.add(new Option(n, i)));
+    t1.value = o.type1;
+    const t2 = document.createElement("select");
+    const fill2 = () => {
+      t2.textContent = "";
+      (o.type1 === 0 ? WEAPONS : o.type1 === 1 ? BULLETS : ["(energy)"]).forEach((n, i) => t2.add(new Option(n, i)));
+      t2.value = o.type2; t2.disabled = o.type1 === 2;
+    };
+    t1.addEventListener("change", () => {
+      pushUndo(); o.type1 = +t1.value; o.type2 = 0;
+      template.crate.type1 = o.type1; template.crate.type2 = 0; fill2(); drawOverlay();
+    });
+    t2.addEventListener("change", () => { pushUndo(); o.type2 = +t2.value; template.crate.type2 = o.type2; });
+    fill2();
+    row("Contains", t1); row("", t2);
+  }
+  const xy = document.createElement("span");
+  xy.append(numInput(o.x, 0, L.w * T - 1, change("x", v => o.x = v)), " ",
+    numInput(o.y, 0, L.h * T - 1, change("y", v => o.y = v)));
+  row("Position (px)", xy);
+  const del = document.createElement("button");
+  del.textContent = "Delete"; del.onclick = () => deleteObj(sel);
+  p.append(del);
+}
+
+function commentText() {
+  let s = "";
+  for (const b of L.comment) { if (!b) break; s += String.fromCharCode(b); }
+  return s;
+}
+
+function refreshSettings() {
+  $("comment").value = commentText();
+  $("timeLimit").value = L.time;
+  const e = $("enemies");
+  e.textContent = "";
+  ENEMIES.forEach((n, i) => {
+    const s = document.createElement("span"); s.textContent = n;
+    e.append(s, numInput(L.enemies[i], 0, 100, v => { pushUndo("en" + i); L.enemies[i] = v; enemyTotal(); }));
+  });
+  enemyTotal();
+  refreshCounts();
+}
+function enemyTotal() {
+  const t = L.enemies.reduce((a, b) => a + b, 0);
+  $("enemyTotal").innerHTML = `enemies in total: ${t}` + (t > 100 ? ' <span class="warn">(the game has room for 100)</span>' : "");
+}
+function refreshCounts() {
+  const c = L.rnd[crateTab], g = $("crateCounts");
+  g.textContent = "";
+  $("tabNormal").classList.toggle("on", crateTab === 0);
+  $("tabDm").classList.toggle("on", crateTab === 1);
+  const add = (name, get, set, key) => {
+    const s = document.createElement("span"); s.textContent = name;
+    g.append(s, numInput(get(), 0, 99, v => { pushUndo(key); set(v); }));
+  };
+  WEAPONS.forEach((n, i) => add(n, () => c.weapon[i], v => c.weapon[i] = v, "w" + crateTab + i));
+  BULLETS.forEach((n, i) => add(n, () => c.bullet[i], v => c.bullet[i] = v, "b" + crateTab + i));
+  add("Energy", () => c.energy, v => c.energy = v, "e" + crateTab);
+  const s = document.createElement("span");
+  s.className = "note"; s.style.gridColumn = "1 / 3";
+  s.textContent = `placed on the map: ${L.crates[crateTab].length} crates, ` +
+    `${L.spots.length} spot lights, ${L.steams.length} steams`;
+  g.append(s);
+}
+
+function refreshPanels() {
+  refreshObjPanel(); refreshSettings(); refreshPalettes(); showPos();
+  $("newW").value = L.w; $("newH").value = L.h;
+}
+
+$("comment").addEventListener("input", () => {
+  pushUndo("comment");
+  L.comment = new Uint8Array(20);
+  const s = $("comment").value.replace(/[^\x20-\x7e]/g, "").slice(0, 19);
+  for (let i = 0; i < s.length; i++) L.comment[i] = s.charCodeAt(i);
+});
+$("timeLimit").addEventListener("input", () => {
+  const v = parseInt($("timeLimit").value, 10);
+  if (!isNaN(v)) { pushUndo("time"); L.time = clamp(v, 0, 99999); }
+});
+
+/* ---------------- files ---------------- */
+function useLevel(l, name) {
+  const resized = !L || l.w !== L.w || l.h !== L.h;
+  L = l; fileName = name; sel = null; undoStack = []; redoStack = []; lastUndoKey = "";
+  $("fileName").textContent = name || "(new level)";
+  if (name) $("saveName").value = name.split("/").pop();
+  if (resized) setupCanvas(); else renderAll();
+  refreshPanels(); setDirty(false);
+  requestAnimationFrame(zoomFit);
+}
+
+function confirmDiscard() {
+  return !dirty || confirm("The level has unsaved changes. Discard them?");
+}
+
+async function loadFromServer(path) {
+  if (!confirmDiscard()) return;
+  try {
+    const b = await fetchBin("LEVS/" + path);
+    const l = parseLevel(b.buffer);
+    useLevel(l, path);
+    message(`loaded ${path} (version ${l.version}${l.version < 5 ? ", saved as version 5" : ""})`);
+  } catch (err) { message("load failed: " + err.message); }
+}
+
+function loadFromFile(file) {
+  if (!file || !confirmDiscard()) return;
+  file.arrayBuffer().then(buf => {
+    try {
+      const l = parseLevel(buf);
+      useLevel(l, file.name);
+      message(`opened ${file.name} (version ${l.version})`);
+    } catch (err) { message("open failed: " + err.message); }
+  });
+}
+
+function download() {
+  let name = $("saveName").value.trim().replace(/[^A-Za-z0-9_.-]/g, "") || "LEVEL1.LEV";
+  if (!/\.lev$/i.test(name)) name += ".LEV";
+  $("saveName").value = name;
+  const url = URL.createObjectURL(new Blob([saveLevel(L)], { type: "application/octet-stream" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  fileName = name; $("fileName").textContent = name;
+  setDirty(false);
+  clearDraft();
+  message("saved " + name + " (downloaded)");
+}
+
+/* list the levels on the server by trying LEVELn.LEV in each episode (no directory listing on static hosting) */
+async function exists(url) {
+  try { return (await fetch(url, { method: "HEAD" })).ok; } catch (_) { return false; }
+}
+async function findLevels() {
+  const sel = $("levSel"), groups = [];
+  const found = await Promise.all(EPISODES.map(async ep => {
+    const list = [];
+    for (let n = 1; n <= 99; n++) {
+      const p = `${ep}/LEVEL${n}.LEV`;
+      if (!(await exists("LEVS/" + p))) break;
+      list.push(p);
+    }
+    return [ep, list];
+  }));
+  const singles = (await Promise.all(SINGLE_LEVELS.map(async f => (await exists("LEVS/" + f)) ? f : null))).filter(Boolean);
+  sel.textContent = "";
+  for (const [ep, list] of found) {
+    if (!list.length) continue;
+    const g = document.createElement("optgroup"); g.label = ep;
+    list.forEach(p => g.append(new Option(p.split("/")[1], p)));
+    groups.push(g);
+  }
+  if (singles.length) {
+    const g = document.createElement("optgroup"); g.label = "other";
+    singles.forEach(f => g.append(new Option(f, f)));
+    groups.push(g);
+  }
+  if (!groups.length) sel.append(new Option("no levels found", ""));
+  sel.append(...groups);
+}
+
+/* draft in browser storage, so a closed tab does not lose the work */
+let draftTimer;
+function scheduleDraft() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    try {
+      const bytes = new Uint8Array(saveLevel(L));
+      let s = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      localStorage.setItem("tked-draft", JSON.stringify({ name: fileName, time: Date.now(), data: btoa(s) }));
+    } catch (_) { /* storage unavailable or full */ }
+  }, 1000);
+}
+function clearDraft() { try { localStorage.removeItem("tked-draft"); } catch (_) { /* ignore */ } $("draftRow").hidden = true; }
+function offerDraft() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem("tked-draft")); } catch (_) { d = null; }
+  if (!d || !d.data) return;
+  $("draftRow").hidden = false;
+  $("draftInfo").textContent = (d.name || "new level") + ", " + new Date(d.time).toLocaleString();
+  $("btnDraft").onclick = () => {
+    if (!confirmDiscard()) return;
+    const s = atob(d.data), b = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    try { useLevel(parseLevel(b.buffer), d.name); setDirty(true); message("draft restored"); }
+    catch (err) { message("draft is broken: " + err.message); }
+  };
+}
+
+/* ---------------- buttons and keys ---------------- */
+function buildTools() {
+  const box = $("tools");
+  for (const [id, name, key] of TOOLS) {
+    const b = document.createElement("button");
+    b.dataset.tool = id;
+    b.innerHTML = `<span>${name}</span><kbd>${key}</kbd>`;
+    b.onclick = () => setTool(id);
+    box.append(b);
+  }
+}
+
+function newOrResize(resize) {
+  const w = clamp(parseInt($("newW").value, 10) || 30, 2, MAXW), h = clamp(parseInt($("newH").value, 10) || 20, 2, MAXH);
+  if (!resize) {
+    if (!confirmDiscard()) return;
+    useLevel(newLevel(w, h, pick[1].type, pick[1].num), "");
+    message(`new level ${w}×${h}, filled with the right button block`);
+    return;
+  }
+  pushUndo();
+  const l = newLevel(w, h, pick[1].type, pick[1].num);
+  for (let y = 0; y < Math.min(h, L.h); y++)
+    for (let x = 0; x < Math.min(w, L.w); x++) {
+      const a = y * w + x, b = y * L.w + x;
+      l.type[a] = L.type[b]; l.num[a] = L.num[b]; l.shadow[a] = L.shadow[b];
+    }
+  const inside = o => o.x < w * T && o.y < h * T;
+  Object.assign(l, {
+    start: L.start.map(s => [Math.min(s[0], w - 1), Math.min(s[1], h - 1)]),
+    spots: L.spots.filter(inside), steams: L.steams.filter(inside),
+    comment: L.comment, time: L.time, enemies: L.enemies, rnd: L.rnd, crates: L.crates.map(c => c.filter(inside))
+  });
+  L = l; sel = null;
+  setupCanvas(); refreshPanels();
+  message(`resized to ${w}×${h}`);
+}
+
+function adjustSelected(key) {
+  const o = objOf(sel);
+  if (!o) return false;
+  pushUndo("arrow");
+  if (sel.kind === "spot") {
+    if (key === "ArrowUp") o.size = Math.min(9, o.size + 1);
+    else if (key === "ArrowDown") o.size = Math.max(0, o.size - 1);
+    else return false;
+    template.spot.size = o.size;
+  } else if (sel.kind === "steam") {
+    if (key === "ArrowUp") o.speed = Math.min(7, o.speed + 1);
+    if (key === "ArrowDown") o.speed = Math.max(0, o.speed - 1);
+    if (key === "ArrowLeft") o.angle = (o.angle + 5) % 360;
+    if (key === "ArrowRight") o.angle = (o.angle + 355) % 360;
+    template.steam = { angle: o.angle, speed: o.speed };
+  } else {
+    const n = o.type1 === 0 ? NW : o.type1 === 1 ? NB : 1;
+    if (key === "ArrowUp") { o.type1 = (o.type1 + 1) % 3; o.type2 = 0; }
+    if (key === "ArrowDown") { o.type1 = (o.type1 + 2) % 3; o.type2 = 0; }
+    if (key === "ArrowRight") o.type2 = (o.type2 + 1) % n;
+    if (key === "ArrowLeft") o.type2 = (o.type2 + n - 1) % n;
+    template.crate.type1 = o.type1; template.crate.type2 = o.type2;
+  }
+  refreshObjPanel(); drawOverlay();
+  return true;
+}
+
+const KEY_TOOLS = { b: "paint", f: "rect", k: "flood", i: "pick", 1: "start1", 2: "start2", q: "spot", w: "delSpot",
+  a: "steam", s: "delSteam", z: "crateN", x: "crateD", c: "delCrate" };
+
+document.addEventListener("keydown", e => {
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== "checkbox";
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    if (k === "s") { e.preventDefault(); download(); return; }
+    if (k === "o") { e.preventDefault(); $("fileIn").click(); return; }
+    if (typing) return;
+    if (k === "z" && !e.shiftKey) { e.preventDefault(); undoRedo(undoStack, redoStack, "undo"); return; }
+    if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); undoRedo(redoStack, undoStack, "redo"); return; }
+    return;
+  }
+  if (typing || e.altKey) return;
+  if (e.key === " ") { spaceDown = true; e.preventDefault(); return; }
+  if (e.key === "F6") { e.preventDefault(); $("btnAuto").click(); return; }
+  if (e.key.startsWith("Arrow") && sel && adjustSelected(e.key)) { e.preventDefault(); return; }
+  if (e.key === "Delete" || e.key === "Backspace") { if (sel) { e.preventDefault(); deleteObj(sel); } return; }
+  if (e.key === "Escape") { sel = null; refreshObjPanel(); if (OBJ_TOOL[tool] || tool.startsWith("start")) setTool("paint"); drawOverlay(); return; }
+  if (e.key === "Enter") { e.preventDefault(); setLayer(layer === "blocks" ? "shadows" : "blocks"); return; }
+  if (e.key === "PageUp" || e.key === "PageDown") { e.preventDefault(); sheetWalls = e.key === "PageUp"; refreshPalettes(); return; }
+  if (e.key === "+" || e.key === "=") { setZoom(zoom * 1.25); return; }
+  if (e.key === "-") { setZoom(zoom / 1.25); return; }
+  if (e.key === "0") { zoomFit(); return; }
+  if (k === "g") { $("optGrid").click(); return; }
+  if (k === "h") { $("optShadows").click(); return; }
+  if (k === "o") { $("optObjects").click(); return; }
+  if (KEY_TOOLS[k]) setTool(KEY_TOOLS[k]);
+});
+document.addEventListener("keyup", e => { if (e.key === " ") spaceDown = false; });
+
+function wire() {
+  buildTools();
+  $("btnLoad").onclick = () => { if ($("levSel").value) loadFromServer($("levSel").value); };
+  $("levSel").addEventListener("dblclick", () => $("btnLoad").click());
+  $("btnOpen").onclick = () => $("fileIn").click();
+  $("fileIn").onchange = () => { loadFromFile($("fileIn").files[0]); $("fileIn").value = ""; };
+  $("btnSave").onclick = download;
+  $("btnNew").onclick = () => newOrResize(false);
+  $("btnResize").onclick = () => newOrResize(true);
+  $("layBlocks").onclick = () => setLayer("blocks");
+  $("layShadows").onclick = () => setLayer("shadows");
+  $("btnAuto").onclick = () => {
+    if (!confirm("Make shadows automatically? All shadows are replaced (undo brings them back).")) return;
+    pushUndo(); autoShadows(); renderAll(); message("shadows done");
+  };
+  $("btnUndo").onclick = () => undoRedo(undoStack, redoStack, "undo");
+  $("btnRedo").onclick = () => undoRedo(redoStack, undoStack, "redo");
+  $("tabWalls").onclick = () => { sheetWalls = true; refreshPalettes(); };
+  $("tabFloor").onclick = () => { sheetWalls = false; refreshPalettes(); };
+  $("tabNormal").onclick = () => { crateTab = 0; refreshCounts(); };
+  $("tabDm").onclick = () => { crateTab = 1; refreshCounts(); };
+  $("zIn").onclick = () => setZoom(zoom * 1.25);
+  $("zOut").onclick = () => setZoom(zoom / 1.25);
+  $("zFit").onclick = zoomFit;
+  $("optGrid").onchange = drawOverlay;
+  $("optObjects").onchange = drawOverlay;
+  $("optShadows").onchange = renderAll;
+  scroller.addEventListener("dragover", e => e.preventDefault());
+  scroller.addEventListener("drop", e => { e.preventDefault(); loadFromFile(e.dataTransfer.files[0]); });
+  window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+}
+
+async function main() {
+  wire();
+  try {
+    await loadGraphics();
+  } catch (err) {
+    $("banner").style.display = "flex";
+    $("bannerText").innerHTML = "<b>The game graphics could not be loaded.</b><br><br>" + err.message +
+      "<br><br>The editor reads EFPS/*.EFP and PALETTE.TAB from the same folder as this page, so " +
+      "it must be opened through a web server (for example GitHub Pages, or " +
+      "<code>python3 -m http.server</code> in the game folder), not as a local file.";
+    return;
+  }
+  L = null;
+  useLevel(newLevel(30, 20, 0, 0), "");
+  setTool("paint");
+  offerDraft();
+  findLevels();
+  message("ready: load a level or start drawing");
+}
+main();
+</script>
+</body>
+</html>
